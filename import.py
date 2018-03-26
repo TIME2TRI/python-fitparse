@@ -10,16 +10,9 @@ import simplejson as json
 
 from datetime import date
 
-def json_serial(obj):
-    """JSON serializer for objects not serializable by default json code"""
-
-    if isinstance(obj, (datetime, date)):
-        return obj.isoformat()
-    raise TypeError("Type %s not serializable" % type(obj))
-
 def importFitAndReturnJson(fileName, fieldName):
      fitfile = FitFile(fileName)
-     return json.dumps(fitfile.get_messages(fieldName, False, True), indent=4, sort_keys=True, default=str, iterable_as_array=True)
+     return json.dumps(fitfile.get_messages(fieldName, False, True), sort_keys=True, default=str, iterable_as_array=True)
 
 def importFit(fileName, fieldName):
      now = datetime.datetime.now()
