@@ -5,7 +5,6 @@ from fitparse import FitFile
 import sys
 import datetime
 import os
-# import json
 import simplejson as json
 
 from datetime import date
@@ -18,9 +17,9 @@ def importFit(fileName, fieldName):
      now = datetime.datetime.now()
 
      if fileName:
-          print "importing file %s" % (fileName)
+          print ("importing file %s" % (fileName))
           print
-          print "Start " + now.strftime("%H:%M:%S")
+          print ("Start " + now.strftime("%H:%M:%S"))
           print
 
           fitfile = FitFile(fileName)
@@ -33,20 +32,20 @@ def importFit(fileName, fieldName):
 
                     # Print the records name and value (and units if it has any)
                     if record_data.units:
-                         print " * %s: %s %s" % (
+                         print (" * %s: %s %s" % (
                          record_data.name, record_data.value, record_data.units,
-                         )
+                         ))
                     else:
-                         print " * %s: %s" % (record_data.name, record_data.value)
+                         print (" * %s: %s" % (record_data.name, record_data.value))
                print
 
           now = datetime.datetime.now()
 
           print
-          print "End " + now.strftime("%H:%M:%S")
+          print ("End " + now.strftime("%H:%M:%S"))
           print
      else:
-          print "Missing filname"
+          print ("Missing filname")
 
 
 if __name__ == "__main__":
@@ -57,15 +56,17 @@ if __name__ == "__main__":
 
      if len(sys.argv) >= 3:
           fieldName = sys.argv[2]
+          if fieldName == 'all':
+               fieldName = None;
      else:
-          fieldName = 'session'
+          fieldName = None
 
      if len(sys.argv) >= 4:
           asJson = sys.argv[3]
      else:
           asJson = False
-
+     
      if asJson:
-          print importFitAndReturnJson(fileName, fieldName)
+          print (importFitAndReturnJson(fileName, fieldName))
      else:
-          print importFit(fileName, fieldName)
+          print (importFit(fileName, fieldName))
