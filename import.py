@@ -5,7 +5,12 @@ from fitparse import FitFile
 import sys
 import datetime
 import os
-import json
+# import json
+import simplejson as json
+
+def importFitAndReturnJson(fileName, fieldName):
+     fitfile = FitFile(fileName)
+     return json.dumps(fitfile.get_messages(fieldName, False, True), iterable_as_array=True)
 
 def importFit(fileName, fieldName):
      now = datetime.datetime.now()
@@ -53,4 +58,12 @@ if __name__ == "__main__":
      else:
           fieldName = 'session'
 
-     print importFit(fileName, fieldName)
+     if len(sys.argv) >= 4:
+          asJson = sys.argv[3]
+     else:
+          asJson = False
+
+     if asJson:
+          print importFitAndReturnJson(fileName, fieldName)
+     else:
+          print importFit(fileName, fieldName)
