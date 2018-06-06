@@ -2,15 +2,14 @@
 
 import csv
 import datetime
-import io
 import os
 from struct import pack
 import sys
 
 from fitparse import FitFile
 from fitparse.processors import UTC_REFERENCE, StandardUnitsDataProcessor
-from fitparse.records import BASE_TYPES
-from fitparse.utils import calc_crc, FitEOFError, FitCRCError, FitHeaderError
+from fitparse.records import BASE_TYPES, Crc
+from fitparse.utils import FitEOFError, FitCRCError, FitHeaderError
 
 if sys.version_info >= (2, 7):
     import unittest
@@ -65,8 +64,8 @@ def generate_fitfile(data=None, endian='<'):
 
     # Prototcol version 1.0, profile version 1.52
     header = pack('<2BHI4s', 14, 16, 152, len(fit_data), b'.FIT')
-    file_data = header + pack('<H', calc_crc(header)) + fit_data
-    return file_data + pack('<H', calc_crc(file_data))
+    file_data = header + pack('<' + Crc.FMT, Crc.calculate(header)) + fit_data
+    return file_data + pack('<' + Crc.FMT, Crc.calculate(file_data))
 
 
 def secs_to_dt(secs):
@@ -397,21 +396,6 @@ class FitFileTestCase(unittest.TestCase):
         """Test that ints are properly shifted and scaled"""
         with FitFile(testfile('event_timestamp.fit')) as f:
             assert f.messages[-1].fields[1].raw_value == 1739.486328125
-
-    def test_fileish_types(self):
-        """Test the constructor does the right thing when given different types
-        (specifically, test files with 8 characters, followed by an uppercase.FIT
-        extension), which confused the fileish check on Python 2, see
-        https://github.com/dtcooper/python-fitparse/issues/29#issuecomment-312436350
-        for details"""
-        with FitFile(testfile('nametest.FIT')):
-            pass
-        with open(testfile("nametest.FIT"), 'rb') as f:
-            FitFile(f)
-        with open(testfile("nametest.FIT"), 'rb') as f:
-            FitFile(f.read())
-        with open(testfile("nametest.FIT"), 'rb') as f:
-            FitFile(io.BytesIO(f.read()))
 
     def test_elemnt_bolt_developer_data_id_without_application_id(self):
         """Test that a file without application id set inside developer_data_id is parsed

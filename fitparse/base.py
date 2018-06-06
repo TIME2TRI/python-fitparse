@@ -5,36 +5,25 @@ import struct
 # Python 2 compat
 try:
     num_types = (int, float, long)
-    str = basestring
 except NameError:
     num_types = (int, float)
 
 from fitparse.processors import FitFileDataProcessor
 from fitparse.profile import FIELD_TYPE_TIMESTAMP, MESSAGE_TYPES
 from fitparse.records import (
-    DataMessage, FieldData, FieldDefinition, DevFieldDefinition, DefinitionMessage, MessageHeader,
-    BASE_TYPES, BASE_TYPE_BYTE, DevField,
+    Crc, DataMessage, FieldData, FieldDefinition, DevFieldDefinition, DefinitionMessage, MessageHeader,
+    BASE_TYPES, BASE_TYPE_BYTE,
     add_dev_data_id, add_dev_field_description, get_dev_type
 )
-from fitparse.utils import calc_crc, FitParseError, FitEOFError, FitCRCError, FitHeaderError
+from fitparse.utils import fileish_open, is_iterable, FitParseError, FitEOFError, FitCRCError, FitHeaderError
+
 
 class FitFile(object):
     def __init__(self, fileish, check_crc=True, data_processor=None):
-        if hasattr(fileish, 'read'):
-            # BytesIO-like object
-            self._file = fileish
-        elif isinstance(fileish, str):
-            # Python2 - file path, file contents in the case of a TypeError
-            # Python3 - file path
-            try:
-                self._file = open(fileish, 'rb')
-            except TypeError:
-                self._file = io.BytesIO(fileish)
-        else:
-            # Python 3 - file contents
-            self._file = io.BytesIO(fileish)
+        self._file = fileish_open(fileish, 'rb')
 
         self.check_crc = check_crc
+        self._crc = None
         self._processor = data_processor or FitFileDataProcessor()
 
         # Get total filesize
@@ -66,12 +55,16 @@ class FitFile(object):
         if size <= 0:
             return None
         data = self._file.read(size)
-        self._crc = calc_crc(data, self._crc)
+        if size != len(data):
+            raise FitEOFError("Tried to read %d bytes from .FIT file but got %d" % (size, len(data)))
+
+        if self.check_crc:
+            self._crc.update(data)
         self._bytes_left -= len(data)
         return data
 
     def _read_struct(self, fmt, endian='<', data=None, always_tuple=False):
-        fmt_with_endian = "%s%s" % (endian, fmt)
+        fmt_with_endian = endian + fmt
         size = struct.calcsize(fmt_with_endian)
         if size <= 0:
             raise FitParseError("Invalid struct format: %s" % fmt_with_endian)
@@ -79,21 +72,19 @@ class FitFile(object):
         if data is None:
             data = self._read(size)
 
-        if size != len(data):
-            raise FitEOFError("Tried to read %d bytes from .FIT file but got %d" % (size, len(data)))
-
         unpacked = struct.unpack(fmt_with_endian, data)
         # Flatten tuple if it's got only one value
         return unpacked if (len(unpacked) > 1) or always_tuple else unpacked[0]
 
     def _read_and_assert_crc(self, allow_zero=False):
         # CRC Calculation is little endian from SDK
-        crc_expected, crc_actual = self._crc, self._read_struct('H')
-
-        if (crc_actual != crc_expected) and not (allow_zero and (crc_actual == 0)):
-            if self.check_crc:
-                raise FitCRCError('CRC Mismatch [expected = 0x%04X, actual = 0x%04X]' % (
-                    crc_expected, crc_actual))
+        crc_computed, crc_read = self._crc.value, self._read_struct(Crc.FMT)
+        if not self.check_crc:
+            return
+        if crc_computed == crc_read or (allow_zero and crc_read == 0):
+            return
+        raise FitCRCError('CRC Mismatch [computed: %s, read: %s]' % (
+            Crc.format(crc_computed), Crc.format(crc_read)))
 
     ##########
     # Private Data Parsing Methods
@@ -105,7 +96,7 @@ class FitFile(object):
         self._bytes_left = -1
         self._complete = False
         self._compressed_ts_accumulator = 0
-        self._crc = 0
+        self._crc = Crc()
         self._local_mesgs = {}
         self._messages = []
 
@@ -251,10 +242,7 @@ class FitFile(object):
             base_type = field_def.base_type
             is_byte = base_type.name == 'byte'
             # Struct to read n base types (field def size / base type size)
-            struct_fmt = '%d%s' % (
-                field_def.size / base_type.size,
-                base_type.fmt,
-            )
+            struct_fmt = str(int(field_def.size / base_type.size)) + base_type.fmt
 
             # Extract the raw value, ask for a tuple if it's a byte type
             raw_value = self._read_struct(
@@ -418,17 +406,10 @@ class FitFile(object):
             as_dict = False
 
         if name is not None:
-            if isinstance(name, (tuple, list)):
-                names = name
+            if is_iterable(name):
+                names = set(name)
             else:
-                names = [name]
-
-            # Convert any string numbers in names to ints
-            # TODO: Revisit Python2/3 str/bytes typecheck issues
-            names = set([
-                int(n) if (isinstance(n, str) and n.isdigit()) else n
-                for n in names
-            ])
+                names = set((name,))
 
         def should_yield(message):
             if with_definitions or message.type == 'data':
