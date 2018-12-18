@@ -1,0 +1,11 @@
+{
+    "name": "time2tri/parser-fit",
+    "description": "Python FIT Parser",
+    "authors": [
+        {
+            "name": "Soeren Kroell",
+            "email": "soeren@time2tri.me"
+        }
+    ],
+    "require": {}
+}
