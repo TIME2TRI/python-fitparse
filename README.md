@@ -8,6 +8,14 @@ Install from [![PyPI](https://img.shields.io/pypi/v/fitparse.svg)](https://pypi.
 pip install fitparse
 ```
 
+Dependencies
+------------
+```
+curl "https://bootstrap.pypa.io/get-pip.py" -o "get-pip.py"
+python get-pip.py
+pip install simplejson
+```
+
 FIT files
 ------------
 - FIT files contain data stored in a binary file format.
