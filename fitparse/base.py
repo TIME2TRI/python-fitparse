@@ -19,7 +19,7 @@ from fitparse.utils import fileish_open, is_iterable, FitParseError, FitEOFError
 
 
 class FitFile(object):
-    def __init__(self, fileish, check_crc=True, data_processor=None):
+    def __init__(self, fileish, check_crc=False, data_processor=None):
         self._file = fileish_open(fileish, 'rb')
 
         self.check_crc = check_crc
@@ -30,6 +30,7 @@ class FitFile(object):
         self._file.seek(0, os.SEEK_END)
         self._filesize = self._file.tell()
         self._file.seek(0, os.SEEK_SET)
+        self._messages = []
 
         # Start off by parsing the file header (sets initial attribute values)
         self._parse_file_header()
@@ -98,8 +99,8 @@ class FitFile(object):
         self._compressed_ts_accumulator = 0
         self._crc = Crc()
         self._local_mesgs = {}
-        self._messages = []
 
+        # Every FIT must have 'FIT' string in the 8th byte. So, it seems your FIT is wrong.
         header_data = self._read(12)
         if header_data[8:12] != b'.FIT':
             raise FitHeaderError("Invalid .FIT File Header")
@@ -319,7 +320,10 @@ class FitFile(object):
                 if field.components:
                     for component in field.components:
                         # Render its raw value
-                        cmp_raw_value = component.render(raw_value)
+                        try:
+                            cmp_raw_value = component.render(raw_value)
+                        except ValueError:
+                            continue
 
                         # Apply accumulated value
                         if component.accumulate and cmp_raw_value is not None:

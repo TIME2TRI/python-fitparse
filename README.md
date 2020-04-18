@@ -16,6 +16,15 @@ python get-pip.py
 pip install simplejson
 ```
 
+Problems
+------------
+If the error `There is no item named 'c/fit.h' in the archive"` appears:
+```
+Replace two files names in scripts/generate_profile.py may help.
+'c/fit.h' to 'FitSDKRelease_xx.xx.00/c/fit.h'
+'Profile.xls' to 'FitSDKRelease_xx.xx.00/Profile.xls'
+```
+
 FIT files
 ------------
 - FIT files contain data stored in a binary file format.

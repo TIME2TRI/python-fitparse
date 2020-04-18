@@ -299,7 +299,7 @@ class SubField(FieldAndSubFieldBase):
 class DevField(FieldAndSubFieldBase):
     __slots__ = ('dev_data_index', 'def_num', 'type', 'name', 'units', 'native_field_num',
                  # The rest of these are just to be compatible with Field objects. They're always None
-                 'scale', 'offset', 'components', 'subfields') 
+                 'scale', 'offset', 'components', 'subfields')
     field_type = 'devfield'
 
 
@@ -318,6 +318,14 @@ class ComponentField(RecordBase):
         # If it's a tuple, then it's a byte array and unpack it as such
         # (only type that uses this is compressed speed/distance)
         if isinstance(raw_value, tuple):
+            # Profile.xls sometimes contains more components than the read raw
+            # value is able to hold (typically the *event_timestamp_12* field in
+            # *hr* messages).
+            # This test allows to ensure *unpacked_num* is not right-shifted
+            # more than necessary.
+            if self.bit_offset and self.bit_offset >= len(raw_value) << 3:
+                raise ValueError()
+
             unpacked_num = 0
 
             # Unpack byte array as little endian
@@ -381,11 +389,23 @@ class Crc(object):
 
 def parse_string(string):
     try:
-        end = string.index(0x00)
-    except TypeError: # Python 2 compat
-        end = string.index('\x00')
+        try:
+            s = string[:string.index(0x00)]
+        except TypeError: # Python 2 compat
+            s = string[:string.index('\x00')]
+    except ValueError:
+        # FIT specification defines the 'string' type as follows: "Null
+        # terminated string encoded in UTF-8 format".
+        #
+        # However 'string' values are not always null-terminated when encoded,
+        # according to FIT files created by Garmin devices (e.g. DEVICE.FIT file
+        # from a fenix3).
+        #
+        # So in order to be more flexible, in case index() could not find any
+        # null byte, we just decode the whole bytes-like object.
+        s = string
 
-    return string[:end].decode('utf-8', errors='replace') or None
+    return s.decode(encoding='utf-8', errors='replace') or None
 
 # The default base type
 BASE_TYPE_BYTE = BaseType(name='byte', identifier=0x0D, fmt='B', parse=lambda x: None if all(b == 0xFF for b in x) else x)
@@ -405,6 +425,9 @@ BASE_TYPES = {
     0x8B: BaseType(name='uint16z', identifier=0x8B, fmt='H', parse=lambda x: None if x == 0x0 else x),
     0x8C: BaseType(name='uint32z', identifier=0x8C, fmt='I', parse=lambda x: None if x == 0x0 else x),
     0x0D: BASE_TYPE_BYTE,
+    0x8E: BaseType(name='sint64', identifier=0x8E, fmt='q', parse=lambda x: None if x == 0x7FFFFFFFFFFFFFFF else x),
+    0x8F: BaseType(name='uint64', identifier=0x8F, fmt='Q', parse=lambda x: None if x == 0xFFFFFFFFFFFFFFFF else x),
+    0x90: BaseType(name='uint64z', identifier=0x90, fmt='Q', parse=lambda x: None if x == 0 else x),
 }
 
 

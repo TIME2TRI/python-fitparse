@@ -60,3 +60,5 @@ target/
 FitSDK*
 
 /vendor/
+_fitparse
+_scripts
